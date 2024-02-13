@@ -1,13 +1,17 @@
+# https://github.com/kropesiusiak/proxy-scraper
+
 import sys
 import aiohttp
 import asyncio
 import random
 import os
+import ctypes
 import socket
 import time
 import re
 from typing import List, Union
 from colorama import Fore, Style, init
+
 init()
 
 class ProxyChecker:
@@ -16,20 +20,22 @@ class ProxyChecker:
         self.endpoint: str = "http://ip-api.com/json/?fields=8217"
         self.country_list_usa: List[str] = ["United States"]
         self.country_list_eu: List[str] = [
-    "Albania", "Andorra", "Austria", "Belarus", "Belgium",
-    "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus",
-    "Czech Republic", "Denmark", "Estonia", "Finland", "France",
-    "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy",
-    "Kosovo", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg",
-    "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands",
-    "North Macedonia", "Norway", "Poland", "Portugal", "Romania",
-    "Russia", "San Marino", "Serbia", "Slovakia", "Slovenia", 
-    "Spain", "Sweden", "Switzerland", "Ukraine"
-]
+            "Albania", "Andorra", "Austria", "Belarus", "Belgium",
+            "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus",
+            "Czech Republic", "Denmark", "Estonia", "Finland", "France",
+            "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy",
+            "Kosovo", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg",
+            "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands",
+            "North Macedonia", "Norway", "Poland", "Portugal", "Romania",
+            "Russia", "San Marino", "Serbia", "Slovakia", "Slovenia", 
+            "Spain", "Sweden", "Switzerland", "Ukraine"
+        ]
         self.proxy_scraping_list_path: str = "proxysources.txt"
         self.scraped_proxies: List[str] = []
         self.proxy_regex: str = r"\d+\.\d+\.\d+\.\d+:\d+"
         self.semaphore: asyncio.Semaphore = None
+        self.total_proxies_checked = 0  # Added counter for total proxies checked
+        self.working_proxies_count = 0  # Added counter for working proxies
 
     def save_proxy(self, proxy: str) -> None:
         with open("workingproxies.txt", "a+") as proxy_file:
@@ -86,9 +92,11 @@ class ProxyChecker:
                 ) as response:
                     data = await response.json()
                     ending_time = time.monotonic()
+                    self.total_proxies_checked += 1  # Increment total proxies checked
                     if not country_check or data["country"] in region:
                         self.print_working_proxy(proxy, data, starting_time, ending_time)
                         self.save_proxy(proxy)
+                        self.working_proxies_count += 1  # Increment working proxies count
 
             except Exception:
                 pass
@@ -97,11 +105,12 @@ class ProxyChecker:
         print(
             Fore.LIGHTGREEN_EX + f"[+]{Style.RESET_ALL} Working Proxy:{Fore.LIGHTYELLOW_EX} {proxy}{Style.RESET_ALL} | Location: {Fore.LIGHTYELLOW_EX}{data['country']}{Style.RESET_ALL} | Speed: {Fore.LIGHTYELLOW_EX}{abs(starting_time - ending_time):.2f}s{Style.RESET_ALL}"
         )
+        self.update_console_title()
 
     async def run(self, region: Union[str, List[str]], threads: int) -> None:
         await self.proxy_scraper()
         self.scraped_proxies = sorted(set(self.scraped_proxies))
-        print(Fore.LIGHTYELLOW_EX + f"[!]{Style.RESET_ALL} Grabbed {Fore.LIGHTYELLOW_EX}{len(self.scraped_proxies)}{Style.RESET_ALL} proxies.")
+        print(Fore.LIGHTRED_EX + f"[!]{Style.RESET_ALL} Grabbed {Fore.LIGHTYELLOW_EX}{len(self.scraped_proxies)}{Style.RESET_ALL} proxies.")
         self.clear_proxy()
 
         region = self.get_normalized_region(region)
@@ -127,11 +136,17 @@ class ProxyChecker:
         print(Fore.LIGHTYELLOW_EX + f"[!]{Style.RESET_ALL} {message}")
         sys.exit(0)
 
+    def update_console_title(self) -> None:
+        ctypes.windll.kernel32.SetConsoleTitleW(
+            f"Proxies Checked: {self.total_proxies_checked} | Working Proxies: {self.working_proxies_count}"
+        )
+
 async def main(region: Union[str, List[str]], threads: int) -> None:
     proxy_checker = ProxyChecker()
     await proxy_checker.run(region, threads)
 
 if __name__ == "__main__":
+    ctypes.windll.kernel32.SetConsoleTitleW("Proxy Scraper by Kropa")
     if "nt" in os.name:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     threads = int(input(Fore.LIGHTYELLOW_EX + f"[?]{Style.RESET_ALL} Enter the number of threads: "))
