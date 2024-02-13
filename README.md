@@ -1,2 +1,2 @@
-# proxy-scraper
-Proxy Scraper from github raws.
+# Proxy Scraper
+# Free to use
